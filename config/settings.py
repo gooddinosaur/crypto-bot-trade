@@ -11,8 +11,8 @@ TESTNET    = True
 
 # ─── Trading Pair ───────────────────────────────
 SYMBOL        = "BTCUSDT"
-TIMEFRAME     = "1h"
-TIMEFRAME_HTF = "4h"
+TIMEFRAME     = "15m"
+TIMEFRAME_HTF = "1h"
 
 # ─── EMA Strategy Parameters ────────────────────
 EMA_FAST  = 9
@@ -21,14 +21,14 @@ EMA_TREND = 50
 
 # ─── Risk Management ────────────────────────────
 RISK_PER_TRADE   = 0.01   # 1% per trade
-MAX_POSITION_PCT = 0.10
-LEVERAGE         = 5
+MAX_POSITION_PCT = 0.20   # เพิ่มขนาดไม้เพื่อให้ถึงเป้ากำไร
+LEVERAGE         = 10     # Day trade มักใช้ Leverage ช่วยทดแทนรอบที่แคบลง
 
 # ─── Stop Loss / Take Profit ────────────────────
-STOP_LOSS_PCT   = 0.012   # 1.2%
-TAKE_PROFIT_PCT = 0.026   # 2.6% → RR 1:2.17
+STOP_LOSS_PCT   = 0.005   # 0.5% (Stop Loss สั้นลง)
+TAKE_PROFIT_PCT = 0.012   # 1.2% (Take profit สั้นลง เก็บกำไรไวขึ้น)
 TRAILING_STOP   = True
-TRAILING_DELTA  = 0.009   # 0.9%
+TRAILING_DELTA  = 0.004   # 0.4%
 
 # ─── Filters ────────────────────────────────────
 MIN_VOLUME_USDT = 500_000
