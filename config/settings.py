@@ -2,45 +2,43 @@
 ==============================================
   BTC Futures Trading Bot — Configuration
 ==============================================
-  ⚠️  ใช้ Testnet ก่อนเสมอ!
-  แก้ TESTNET = False เมื่อพร้อม live trade
 """
 
 # ─── API Keys ───────────────────────────────────
-# ใส่ key จาก https://testnet.binancefuture.com
-API_KEY    = "DkdADJdavMckV3DBiAkWEpofAwyvIcwwLBvYAcvfOyUMoYyxWZ5pyPx1tP0VsDhj"
-API_SECRET = "SPfibpDWNZiRi8ZG9wezcnHhvmrf3CouJXgu1yhPkSlQWuDWR9sEIAc8z2Y18jdW"
-TESTNET    = True   # ← เปลี่ยนเป็น False สำหรับ live
+API_KEY    = "NLYVjzCjMECjjC1NqrSvbDe5g1LuoTKGMKZLL7t7EwbtqjkHkHGplOePlqGQeyg6"
+API_SECRET = "BWl4cNQPPzAmPjzY0WtaxcLASahbTJKaymTWqThveXmgwMtp67EX2cyPNjrH2FYa"
+TESTNET    = False
 
 # ─── Trading Pair ───────────────────────────────
-SYMBOL     = "BTCUSDT"
-TIMEFRAME  = "1h"    # 1m 5m 15m 1h 4h 1d
+SYMBOL        = "BTCUSDT"
+TIMEFRAME     = "5m"
+TIMEFRAME_HTF = "15m"
 
 # ─── EMA Strategy Parameters ────────────────────
-EMA_FAST  = 12          # จาก 9
-EMA_SLOW  = 26          # จาก 21  (MACD standard)
-EMA_TREND = 100         # จาก 50
+EMA_FAST  = 9
+EMA_SLOW  = 21
+EMA_TREND = 50
 
 # ─── Risk Management ────────────────────────────
-RISK_PER_TRADE   = 0.01   # 1% ของ portfolio ต่อ trade
-MAX_POSITION_PCT = 0.10   # เปิด position สูงสุด 10% ของ balance
-LEVERAGE         = 5      # leverage (1–20, แนะนำ ≤10)
+RISK_PER_TRADE   = 0.01   # 1% per trade
+MAX_POSITION_PCT = 0.10   # 50% ของพอร์ต (เพราะ Stop loss สั้นมาก ใช้ Margin เยอะขึ้นเพื่อกำไร)
+LEVERAGE         = 10
 
 # ─── Stop Loss / Take Profit ────────────────────
-STOP_LOSS_PCT   = 0.012   # จาก 0.015
-TAKE_PROFIT_PCT = 0.036   # จาก 0.030  (RR = 1:3)
-TRAILING_STOP    = True   # ใช้ trailing stop
-TRAILING_DELTA   = 0.010  # trailing ห่าง 1.0%
+STOP_LOSS_PCT   = 0.003   # 0.3% ตัดขาดทุนไวมาก
+TAKE_PROFIT_PCT = 0.006   # 0.6% รีบเก็บค่ายกับข้าว
+TRAILING_STOP   = True
+TRAILING_DELTA  = 0.002   # 0.2%
 
 # ─── Filters ────────────────────────────────────
-MIN_VOLUME_USDT = 1_000_000   # จาก 500_000
-ATR_MULTIPLIER   = 1.5       # กรอง entry ด้วย ATR
+MIN_VOLUME_USDT = 500_000
+ATR_MULTIPLIER  = 1.1
 
 # ─── Backtesting ────────────────────────────────
-BACKTEST_DAYS    = 365    # ย้อนหลัง 90 วัน
-INITIAL_CAPITAL  = 10_000  # USDT
+BACKTEST_DAYS   = 10
+INITIAL_CAPITAL = 10_000
 
 # ─── Bot Settings ───────────────────────────────
-LOOP_INTERVAL    = 60    # วนลูปทุก 60 วินาที
-LOG_LEVEL        = "INFO"
-LOG_FILE         = "logs/bot.log"
+LOOP_INTERVAL = 60
+LOG_LEVEL     = "INFO"
+LOG_FILE      = "logs/bot.log"
