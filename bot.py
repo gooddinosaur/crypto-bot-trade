@@ -212,6 +212,9 @@ def main():
 
         engine = BacktestEngine(df, df_htf, INITIAL_CAPITAL)   # ← ส่ง df_htf ด้วย
         engine.run()
+    else:
+        bot = TradingBot()
+        bot.run()
 
 
 if __name__ == "__main__":

@@ -7,7 +7,7 @@
 # ─── API Keys ───────────────────────────────────
 API_KEY    = "DkdADJdavMckV3DBiAkWEpofAwyvIcwwLBvYAcvfOyUMoYyxWZ5pyPx1tP0VsDhj"
 API_SECRET = "SPfibpDWNZiRi8ZG9wezcnHhvmrf3CouJXgu1yhPkSlQWuDWR9sEIAc8z2Y18jdW"
-TESTNET    = True
+TESTNET    = False
 
 # ─── Trading Pair ───────────────────────────────
 SYMBOL        = "BTCUSDT"
@@ -21,7 +21,7 @@ EMA_TREND = 50
 
 # ─── Risk Management ────────────────────────────
 RISK_PER_TRADE   = 0.01   # 1% per trade
-MAX_POSITION_PCT = 0.50   # 50% ของพอร์ต (เพราะ Stop loss สั้นมาก ใช้ Margin เยอะขึ้นเพื่อกำไร)
+MAX_POSITION_PCT = 0.10   # 50% ของพอร์ต (เพราะ Stop loss สั้นมาก ใช้ Margin เยอะขึ้นเพื่อกำไร)
 LEVERAGE         = 10
 
 # ─── Stop Loss / Take Profit ────────────────────
@@ -35,7 +35,7 @@ MIN_VOLUME_USDT = 500_000
 ATR_MULTIPLIER  = 1.1
 
 # ─── Backtesting ────────────────────────────────
-BACKTEST_DAYS   = 90
+BACKTEST_DAYS   = 2
 INITIAL_CAPITAL = 10_000
 
 # ─── Bot Settings ───────────────────────────────
