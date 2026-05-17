@@ -37,7 +37,7 @@ MIN_VOLUME_USDT = 1_000_000   # จาก 500_000
 ATR_MULTIPLIER   = 1.5       # กรอง entry ด้วย ATR
 
 # ─── Backtesting ────────────────────────────────
-BACKTEST_DAYS    = 5 
+BACKTEST_DAYS    = 30
 INITIAL_CAPITAL  = 10_000  # USDT
 
 # ─── Bot Settings ───────────────────────────────
