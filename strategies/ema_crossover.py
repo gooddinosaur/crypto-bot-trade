@@ -99,14 +99,14 @@ class EMAStrategy:
         long_ok = (
             prev["cross_up"] and
             prev["close"] > prev[trend] and
-            30 < prev["rsi"] < 65    # จาก < 70 → เข้าเฉพาะก่อน overbought
+            30 < prev["rsi"] < 65     # จาก < 70 → เข้าเฉพาะก่อน overbought
         )
 
         # SHORT conditions
         short_ok = (
             prev["cross_down"] and
             prev["close"] < prev[trend] and
-            40 < prev["rsi"] < 75    # จาก > 30 → เข้าเฉพาะก่อน oversold
+            35 < prev["rsi"] < 70    # จาก > 30 → เข้าเฉพาะก่อน oversold
         )
 
         if long_ok:
