@@ -11,8 +11,8 @@ TESTNET    = True
 
 # ─── Trading Pair ───────────────────────────────
 SYMBOL        = "BTCUSDT"
-TIMEFRAME     = "15m"
-TIMEFRAME_HTF = "1h"
+TIMEFRAME     = "5m"
+TIMEFRAME_HTF = "15m"
 
 # ─── EMA Strategy Parameters ────────────────────
 EMA_FAST  = 9
@@ -21,21 +21,21 @@ EMA_TREND = 50
 
 # ─── Risk Management ────────────────────────────
 RISK_PER_TRADE   = 0.01   # 1% per trade
-MAX_POSITION_PCT = 0.20   # เพิ่มขนาดไม้เพื่อให้ถึงเป้ากำไร
-LEVERAGE         = 10     # Day trade มักใช้ Leverage ช่วยทดแทนรอบที่แคบลง
+MAX_POSITION_PCT = 0.50   # 50% ของพอร์ต (เพราะ Stop loss สั้นมาก ใช้ Margin เยอะขึ้นเพื่อกำไร)
+LEVERAGE         = 10
 
 # ─── Stop Loss / Take Profit ────────────────────
-STOP_LOSS_PCT   = 0.005   # 0.5% (Stop Loss สั้นลง)
-TAKE_PROFIT_PCT = 0.012   # 1.2% (Take profit สั้นลง เก็บกำไรไวขึ้น)
+STOP_LOSS_PCT   = 0.003   # 0.3% ตัดขาดทุนไวมาก
+TAKE_PROFIT_PCT = 0.006   # 0.6% รีบเก็บค่ายกับข้าว
 TRAILING_STOP   = True
-TRAILING_DELTA  = 0.004   # 0.4%
+TRAILING_DELTA  = 0.002   # 0.2%
 
 # ─── Filters ────────────────────────────────────
 MIN_VOLUME_USDT = 500_000
 ATR_MULTIPLIER  = 1.1
 
 # ─── Backtesting ────────────────────────────────
-BACKTEST_DAYS   = 365
+BACKTEST_DAYS   = 90
 INITIAL_CAPITAL = 10_000
 
 # ─── Bot Settings ───────────────────────────────

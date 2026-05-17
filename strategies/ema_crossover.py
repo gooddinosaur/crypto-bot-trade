@@ -75,56 +75,27 @@ class EMAStrategy:
         slow  = f"ema_{EMA_SLOW}"
         trend = f"ema_{EMA_TREND}"
 
-        # ── HTF Trend Filter (4h) ──────────────────────────────────────
-        # 4h ต้องบอกทิศทางชัดเจน ก่อน entry ใน 1h
+        # ── HTF Trend Filter (15m) ──────────────────────────────────────
+        # ให้กรองแค่ว่า EMA9 ตัด EMA21 หรือเปล่าพอ จะได้ไม่ตึงเกินไป
         htf_bull = True
         htf_bear = True
 
         if df_htf is not None and len(df_htf) >= 3:
-            h = df_htf.iloc[-2]   # แท่ง 4h ปิดล่าสุด
+            h = df_htf.iloc[-2]   # แท่งก่อนหน้าปิดล่าสุด
 
-            # Bull: ราคาอยู่เหนือ EMA50 และ EMA9 > EMA21 ใน 4h
-            htf_bull = (
-                h["close"] > h[trend] and
-                h[fast]    > h[slow]  and
-                h[fast]    > h[trend]
-            )
-            # Bear: ราคาอยู่ต่ำกว่า EMA50 และ EMA9 < EMA21 ใน 4h
-            htf_bear = (
-                h["close"] < h[trend] and
-                h[fast]    < h[slow]  and
-                h[fast]    < h[trend]
-            )
+            # ปิดเงื่อนไข h[trend] ไปก่อน เพื่อให้เข้าได้บ่อยขึ้น
+            htf_bull = (h[fast] > h[slow])
+            htf_bear = (h[fast] < h[slow])
 
-        # ── Volatility Filter ──────────────────────────────────────────
-        # ATR ต้องมีขนาดพอสมควร (ตลาดต้องมี movement)
-        min_atr = prev["close"] * 0.0012   # 0.12% ของราคา
-        if prev["atr"] < min_atr:
-            return Signal.HOLD
-
-        # ── Volume Filter ──────────────────────────────────────────────
-        if not (prev["volume"] > prev["vol_ma"] and
-                prev["volume"] * prev["close"] > MIN_VOLUME_USDT):
-            return Signal.HOLD
-
-        # ── EMA Spread Filter (หลีกเลี่ยง choppy) ─────────────────────
-        # EMA9 ต้องห่างจาก EMA21 พอสมควร
-        spread = abs(prev[fast] - prev[slow]) / prev["close"]
-        if spread < 0.0005:
-            return Signal.HOLD
+        # ── Volume & ATR Filter (ปิดชั่วคราวเพื่อให้เทรดถี่) ────────────
+        # (เราเอาเงื่อนไข filter ที่ตึงเกินไปออกทั้งหมด เพื่อจำลอง day trade เต็มรูปแบบ)
 
         # ── LONG Setup ─────────────────────────────────────────────────
-        # 1. EMA9 ตัดขึ้น EMA21 (cross up)
-        # 2. ราคาและ EMA9 อยู่เหนือ EMA50
-        # 3. RSI ยืนเหนือ 50 (momentum เป็นบวก)
-        # 4. 4h เป็น uptrend
-        # 5. Candle ปิดเป็นบวก (momentum ยืนยัน)
         long_ok = (
             prev["cross_up"]             and
             prev["close"] > prev[trend]  and
             prev[fast]    > prev[trend]  and
             prev["rsi"] > 50             and
-            prev["close"] > prev["open"] and   # bullish candle
             htf_bull
         )
 
@@ -134,7 +105,6 @@ class EMAStrategy:
             prev["close"] < prev[trend]  and
             prev[fast]    < prev[trend]  and
             prev["rsi"] < 50             and
-            prev["close"] < prev["open"] and   # bearish candle
             htf_bear
         )
 
