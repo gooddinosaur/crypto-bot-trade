@@ -24,11 +24,11 @@ EMA_TREND = 34
 # ─── Risk Management ────────────────────────────
 RISK_PER_TRADE   = 0.01        # ลดจาก 2% → 1%
 MAX_POSITION_PCT = 0.10
-LEVERAGE         = 5      # leverage (1–20, แนะนำ ≤10)
+LEVERAGE         = 3      # leverage (1–20, แนะนำ ≤10)
 
 # ─── Stop Loss / Take Profit ────────────────────
-STOP_LOSS_PCT    = 0.010
-TAKE_PROFIT_PCT  = 0.030    # RR 1:2.5
+STOP_LOSS_PCT    = 0.012
+TAKE_PROFIT_PCT  = 0.030
 TRAILING_STOP    = True
 TRAILING_DELTA   = 0.005
 

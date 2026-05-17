@@ -118,6 +118,7 @@ def add_indicators(df: pd.DataFrame,
     df[f"ema_{fast}"]  = df["close"].ewm(span=fast,  adjust=False).mean()
     df[f"ema_{slow}"]  = df["close"].ewm(span=slow,  adjust=False).mean()
     df[f"ema_{trend}"] = df["close"].ewm(span=trend, adjust=False).mean()
+    df["ema_200"] = df["close"].ewm(span=200, adjust=False).mean()
 
     # ATR (Average True Range) — วัด volatility
     high_low   = df["high"] - df["low"]

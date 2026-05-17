@@ -21,7 +21,7 @@ from utils.helpers import (
     get_logger, get_client, fetch_ohlcv, add_indicators,
     get_balance, get_current_price
 )
-from strategies.ema_crossover import EMAStrategy, Signal
+from strategies.rsi_divergence import RSIDivergenceStrategy as EMAStrategy, Signal
 
 
 logger = get_logger("BOT")
