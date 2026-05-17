@@ -27,14 +27,16 @@ def get_logger(name: str = "BTCBot") -> logging.Logger:
         datefmt="%Y-%m-%d %H:%M:%S"
     )
 
-    # Console
-    ch = logging.StreamHandler(sys.stdout)
-    ch.stream = open(sys.stdout.fileno(), mode='w', encoding='utf-8', buffering=1)
+    # Console — force utf-8
+    ch = logging.StreamHandler()
+    ch.setStream(open(1, mode='w', encoding='utf-8', closefd=False, buffering=1))
     ch.setFormatter(fmt)
     logger.addHandler(ch)
 
     # File
-    fh = logging.FileHandler(LOG_FILE)
+    import os
+    os.makedirs(os.path.dirname(LOG_FILE), exist_ok=True)
+    fh = logging.FileHandler(LOG_FILE, encoding='utf-8')
     fh.setFormatter(fmt)
     logger.addHandler(fh)
 
