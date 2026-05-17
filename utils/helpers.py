@@ -10,6 +10,10 @@ from binance.um_futures import UMFutures
 from config.settings import (
     API_KEY, API_SECRET, TESTNET, LOG_LEVEL, LOG_FILE
 )
+from config.settings import (
+    API_KEY, API_SECRET, TESTNET, LOG_LEVEL, LOG_FILE,
+    EMA_FAST, EMA_SLOW, EMA_TREND   # ← เพิ่มบรรทัดนี้
+)
 
 def fetch_multi_tf(client, symbol: str, 
                    fast_tf: str, slow_tf: str,
