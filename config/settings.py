@@ -5,8 +5,8 @@
 """
 
 # ─── API Keys ───────────────────────────────────
-API_KEY    = "DkdADJdavMckV3DBiAkWEpofAwyvIcwwLBvYAcvfOyUMoYyxWZ5pyPx1tP0VsDhj"
-API_SECRET = "SPfibpDWNZiRi8ZG9wezcnHhvmrf3CouJXgu1yhPkSlQWuDWR9sEIAc8z2Y18jdW"
+API_KEY    = "NLYVjzCjMECjjC1NqrSvbDe5g1LuoTKGMKZLL7t7EwbtqjkHkHGplOePlqGQeyg6"
+API_SECRET = "BWl4cNQPPzAmPjzY0WtaxcLASahbTJKaymTWqThveXmgwMtp67EX2cyPNjrH2FYa"
 TESTNET    = False
 
 # ─── Trading Pair ───────────────────────────────
@@ -35,7 +35,7 @@ MIN_VOLUME_USDT = 500_000
 ATR_MULTIPLIER  = 1.1
 
 # ─── Backtesting ────────────────────────────────
-BACKTEST_DAYS   = 2
+BACKTEST_DAYS   = 10
 INITIAL_CAPITAL = 10_000
 
 # ─── Bot Settings ───────────────────────────────
