@@ -1,29 +1,21 @@
 """
 strategies/ema_crossover.py — EMA Triple Crossover Strategy
-
-กลยุทธ์:
-  LONG  → EMA fast ตัดขึ้น EMA slow + price > EMA trend + RSI < 70 + Volume สูง
-  SHORT → EMA fast ตัดลง EMA slow + price < EMA trend + RSI > 30 + Volume สูง
-
-Exit:
-  - Take Profit (fixed %)
-  - Stop Loss   (fixed %)
-  - Trailing Stop (ถ้าเปิดใช้)
-  - EMA cross กลับด้าน
 """
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import Enum
 from typing import Optional
 import pandas as pd
+import numpy as np
 
 from config.settings import (
     EMA_FAST, EMA_SLOW, EMA_TREND,
     STOP_LOSS_PCT, TAKE_PROFIT_PCT,
     TRAILING_STOP, TRAILING_DELTA,
     MIN_VOLUME_USDT, RISK_PER_TRADE,
-    MAX_POSITION_PCT, LEVERAGE
+    MAX_POSITION_PCT, LEVERAGE,
+    ATR_MULTIPLIER
 )
-from utils.helpers import add_indicators, calculate_position_size
+from utils.helpers import calculate_position_size
 
 
 class Signal(Enum):
@@ -35,13 +27,13 @@ class Signal(Enum):
 
 @dataclass
 class Position:
-    side:          str            # "LONG" | "SHORT"
+    side:          str
     entry_price:   float
     quantity:      float
     sl_price:      float
     tp_price:      float
-    highest_price: float = 0.0   # สำหรับ trailing stop (LONG)
-    lowest_price:  float = 0.0   # สำหรับ trailing stop (SHORT)
+    highest_price: float = 0.0
+    lowest_price:  float = 0.0
     pnl_pct:       float = 0.0
 
     def __post_init__(self):
@@ -50,44 +42,57 @@ class Position:
 
 
 class EMAStrategy:
-    """
-    Triple EMA Crossover + RSI filter + Volume filter
-    """
 
     def __init__(self):
         self.position: Optional[Position] = None
 
-    # ─── Signal Generation ──────────────────────────────────────────────────
+    # ─── Signal Generation ──────────────────────────────────────────────
 
-    def generate_signal(self, df: pd.DataFrame) -> Signal:
+    def generate_signal(self, df: pd.DataFrame, 
+                        df_htf: pd.DataFrame = None) -> Signal:
         """
-        วิเคราะห์ DataFrame ล่าสุด และส่งคืน Signal
-        df ต้องผ่าน add_indicators() มาแล้ว
+        df     = fast timeframe (15m) — ใช้ entry
+        df_htf = slow timeframe (1h)  — ใช้กำหนดทิศทาง
         """
         if len(df) < 3:
             return Signal.HOLD
 
-        last  = df.iloc[-1]   # แท่งปัจจุบัน (ยังไม่ปิด)
-        prev  = df.iloc[-2]   # แท่งก่อนหน้า (ปิดแล้ว ← ใช้สร้าง signal)
+        last = df.iloc[-1]
+        prev = df.iloc[-2]
 
-        # ── ถ้ามี position อยู่ → เช็ค exit ก่อน ──────────────────────────
         if self.position:
             close_signal = self._check_exit(last, prev)
             if close_signal == Signal.CLOSE:
                 return Signal.CLOSE
 
-        # ── ยังไม่มี position → หา entry ──────────────────────────────────
         if not self.position:
-            return self._check_entry(prev, last)
+            return self._check_entry(prev, last, df_htf)
 
         return Signal.HOLD
 
-    def _check_entry(self, prev: pd.Series, last: pd.Series) -> Signal:
+    def _check_entry(self, prev: pd.Series, last: pd.Series,
+                    df_htf: pd.DataFrame = None) -> Signal:
         fast  = f"ema_{EMA_FAST}"
         slow  = f"ema_{EMA_SLOW}"
         trend = f"ema_{EMA_TREND}"
 
-        # Volume filter: ต้องสูงกว่า MA และเกิน minimum
+        # ── Higher Timeframe trend filter ─────────────────────────────
+        htf_trend_up   = True
+        htf_trend_down = True
+
+        if df_htf is not None and len(df_htf) >= 2:
+            htf = df_htf.iloc[-2]   # แท่งปิดล่าสุดของ 1h
+            htf_trend_up   = (htf["close"] > htf[trend] and 
+                            htf[fast] > htf[slow])
+            htf_trend_down = (htf["close"] < htf[trend] and 
+                            htf[fast] < htf[slow])
+
+        # ── ATR filter ────────────────────────────────────────────────
+        atr_threshold = prev["close"] * 0.0008
+        if prev["atr"] < atr_threshold:
+            return Signal.HOLD
+
+        # ── Volume filter ─────────────────────────────────────────────
         vol_ok = (
             prev["volume"] > prev["vol_ma"] and
             prev["volume"] * prev["close"] > MIN_VOLUME_USDT
@@ -95,18 +100,22 @@ class EMAStrategy:
         if not vol_ok:
             return Signal.HOLD
 
-        # LONG conditions
+        # ── LONG: 15m cross + 1h trend ขึ้น ──────────────────────────
         long_ok = (
             prev["cross_up"] and
             prev["close"] > prev[trend] and
-            30 < prev["rsi"] < 65    # จาก < 70 → เข้าเฉพาะก่อน overbought
+            prev[fast] > prev[trend] and
+            30 < prev["rsi"] < 65 and
+            htf_trend_up                    # ← 1h ต้องเป็น uptrend
         )
 
-        # SHORT conditions
+        # ── SHORT: 15m cross + 1h trend ลง ───────────────────────────
         short_ok = (
             prev["cross_down"] and
             prev["close"] < prev[trend] and
-            40 < prev["rsi"] < 75    # จาก > 30 → เข้าเฉพาะก่อน oversold
+            prev[fast] < prev[trend] and
+            35 < prev["rsi"] < 70 and
+            htf_trend_down                  # ← 1h ต้องเป็น downtrend
         )
 
         if long_ok:
@@ -116,24 +125,19 @@ class EMAStrategy:
         return Signal.HOLD
 
     def _check_exit(self, last: pd.Series, prev: pd.Series) -> Signal:
-        """ตรวจสอบเงื่อนไข exit"""
         pos   = self.position
         price = last["close"]
 
         if pos.side == "LONG":
-            # Take Profit
             if price >= pos.tp_price:
                 return Signal.CLOSE
-            # Stop Loss
             if price <= pos.sl_price:
                 return Signal.CLOSE
-            # Trailing Stop
             if TRAILING_STOP:
                 pos.highest_price = max(pos.highest_price, price)
                 trail_sl = pos.highest_price * (1 - TRAILING_DELTA)
                 if price <= trail_sl and price > pos.entry_price:
                     return Signal.CLOSE
-            # EMA reversal
             if prev["cross_down"]:
                 return Signal.CLOSE
 
@@ -152,16 +156,34 @@ class EMAStrategy:
 
         return Signal.HOLD
 
-    # ─── Position Management ────────────────────────────────────────────────
+    # ─── Position Management ────────────────────────────────────────────
 
     def open_position(self, side: str, entry_price: float,
-                      balance: float) -> Position:
-        if side == "LONG":
-            sl_price = entry_price * (1 - STOP_LOSS_PCT)
-            tp_price = entry_price * (1 + TAKE_PROFIT_PCT)
+                      balance: float, atr: float = 0.0) -> Position:
+        """
+        ATR-based SL/TP: ปรับ SL/TP ตาม volatility จริง
+        Fallback เป็น fixed % ถ้าไม่มี ATR
+        """
+        if atr and atr > 0:
+            # ATR_MULTIPLIER จาก settings (default 1.5)
+            sl_dist = atr * ATR_MULTIPLIER          # SL = 1.5x ATR
+            tp_dist = atr * ATR_MULTIPLIER * 2.0    # TP = 3.0x ATR (RR 1:2)
+            sl_pct  = sl_dist / entry_price
+            tp_pct  = tp_dist / entry_price
+
+            # Cap ไม่ให้ SL กว้างเกินไป (max 2% และ min 0.3%)
+            sl_pct = max(0.003, min(sl_pct, 0.02))
+            tp_pct = sl_pct * 2.0   # รักษา RR 1:2 เสมอ
         else:
-            sl_price = entry_price * (1 + STOP_LOSS_PCT)
-            tp_price = entry_price * (1 - TAKE_PROFIT_PCT)
+            sl_pct = STOP_LOSS_PCT
+            tp_pct = TAKE_PROFIT_PCT
+
+        if side == "LONG":
+            sl_price = entry_price * (1 - sl_pct)
+            tp_price = entry_price * (1 + tp_pct)
+        else:
+            sl_price = entry_price * (1 + sl_pct)
+            tp_price = entry_price * (1 - tp_pct)
 
         qty = calculate_position_size(
             balance, entry_price, sl_price,
@@ -185,18 +207,17 @@ class EMAStrategy:
             pnl_pct = (pos.entry_price - exit_price) / pos.entry_price
 
         result = {
-            "side":        pos.side,
-            "entry":       pos.entry_price,
-            "exit":        exit_price,
-            "quantity":    pos.quantity,
-            "pnl_pct":     pnl_pct,
-            "pnl_usdt":    pnl_pct * pos.entry_price * pos.quantity * LEVERAGE,
+            "side":     pos.side,
+            "entry":    pos.entry_price,
+            "exit":     exit_price,
+            "quantity": pos.quantity,
+            "pnl_pct":  pnl_pct,
+            "pnl_usdt": pnl_pct * pos.entry_price * pos.quantity * LEVERAGE,
         }
         self.position = None
         return result
 
     def update_pnl(self, current_price: float) -> float:
-        """คำนวณ unrealized PnL (%)"""
         if not self.position:
             return 0.0
         pos = self.position

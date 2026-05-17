@@ -23,6 +23,16 @@ from utils.helpers import (
 )
 from strategies.ema_crossover import EMAStrategy, Signal
 
+from config.settings import (
+    SYMBOL, TIMEFRAME, TIMEFRAME_HTF,   # ← เพิ่ม TIMEFRAME_HTF
+    LOOP_INTERVAL, EMA_FAST, EMA_SLOW, EMA_TREND,
+    LEVERAGE, BACKTEST_DAYS, INITIAL_CAPITAL
+)
+from utils.helpers import (
+    get_logger, get_client, fetch_ohlcv, add_indicators,
+    fetch_multi_tf,                      # ← เพิ่ม
+    get_balance, get_current_price
+)
 
 logger = get_logger("BOT")
 
@@ -64,37 +74,37 @@ class TradingBot:
             time.sleep(LOOP_INTERVAL)
 
     def _tick(self):
-        """หนึ่ง iteration ของ loop"""
-        # ดึงข้อมูลใหม่
-        df = fetch_ohlcv(self.client, SYMBOL, TIMEFRAME, lookback_days=5)
-        df = add_indicators(df, EMA_FAST, EMA_SLOW, EMA_TREND)
+        # ดึงข้อมูล 2 timeframe
+        df, df_htf = fetch_multi_tf(
+            self.client, SYMBOL,
+            TIMEFRAME, TIMEFRAME_HTF,
+            lookback_days=10
+        )
 
         price   = get_current_price(self.client, SYMBOL)
         balance = get_balance(self.client)
-        signal  = self.strategy.generate_signal(df)
+        signal  = self.strategy.generate_signal(df, df_htf)  # ← ส่ง df_htf
 
         last = df.iloc[-1]
         self._log_status(price, balance, last, signal)
 
-        # ── Execute ──────────────────────────────────────────────────────
         if signal == Signal.CLOSE and self.strategy.position:
             self._execute_close(price)
-
         elif signal == Signal.LONG and not self.strategy.position:
-            self._execute_open("LONG", price, balance)
-
+            atr = df.iloc[-2]["atr"] if "atr" in df.columns else 0.0
+            self._execute_open("LONG", price, balance, atr=atr)
         elif signal == Signal.SHORT and not self.strategy.position:
-            self._execute_open("SHORT", price, balance)
+            atr = df.iloc[-2]["atr"] if "atr" in df.columns else 0.0
+            self._execute_open("SHORT", price, balance, atr=atr)
 
-        # อัพเดท unrealized PnL
         if self.strategy.position:
             pnl = self.strategy.update_pnl(price)
             logger.info(f"  📈 Unrealized PnL: {pnl*100:+.2f}%")
 
     # ─── Order Execution ──────────────────────────────────────────────────
 
-    def _execute_open(self, side: str, price: float, balance: float):
-        pos = self.strategy.open_position(side, price, balance)
+    def _execute_open(self, side: str, price: float, balance: float, atr: float = 0.0):  # ← เพิ่ม atr
+        pos = self.strategy.open_position(side, price, balance, atr=atr)  # ← เพิ่ม atr=atr
         if pos.quantity <= 0:
             logger.warning("⚠️  คำนวณ position size = 0 — ข้าม")
             return
@@ -112,7 +122,6 @@ class TradingBot:
                 f"Entry: ~{price:.1f} | SL: {pos.sl_price:.1f} | TP: {pos.tp_price:.1f}"
             )
 
-            # ตั้ง SL Order
             sl_side = "SELL" if side == "LONG" else "BUY"
             self.client.new_order(
                 symbol=SYMBOL,
@@ -124,7 +133,6 @@ class TradingBot:
                 timeInForce="GTE_GTC"
             )
 
-            # ตั้ง TP Order
             self.client.new_order(
                 symbol=SYMBOL,
                 side=sl_side,
@@ -138,7 +146,7 @@ class TradingBot:
 
         except Exception as e:
             logger.error(f"❌ Open order failed: {e}")
-            self.strategy.position = None   # rollback state
+            self.strategy.position = None
 
     def _execute_close(self, price: float):
         pos = self.strategy.position
@@ -190,17 +198,20 @@ def main():
 
     if args.backtest:
         from backtest.engine import BacktestEngine
-        from utils.helpers import get_client, fetch_ohlcv, add_indicators
+        from utils.helpers import fetch_multi_tf
+        from config.settings import TIMEFRAME_HTF   # ← เพิ่ม
 
         print(f"📡 กำลังดึงข้อมูลสำหรับ backtest...")
         client = get_client()
-        df     = fetch_ohlcv(client, SYMBOL, TIMEFRAME, BACKTEST_DAYS)
-        df     = add_indicators(df, EMA_FAST, EMA_SLOW, EMA_TREND)
-        engine = BacktestEngine(df, INITIAL_CAPITAL)
+
+        df, df_htf = fetch_multi_tf(       # ← เปลี่ยนจาก fetch_ohlcv + add_indicators
+            client, SYMBOL,
+            TIMEFRAME, TIMEFRAME_HTF,
+            BACKTEST_DAYS
+        )
+
+        engine = BacktestEngine(df, df_htf, INITIAL_CAPITAL)   # ← ส่ง df_htf ด้วย
         engine.run()
-    else:
-        bot = TradingBot()
-        bot.run()
 
 
 if __name__ == "__main__":

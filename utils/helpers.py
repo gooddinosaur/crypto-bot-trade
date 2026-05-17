@@ -11,6 +11,17 @@ from config.settings import (
     API_KEY, API_SECRET, TESTNET, LOG_LEVEL, LOG_FILE
 )
 
+def fetch_multi_tf(client, symbol: str, 
+                   fast_tf: str, slow_tf: str,
+                   lookback_days: int):
+    """ดึงข้อมูล 2 timeframe พร้อมกัน"""
+    df_fast = fetch_ohlcv(client, symbol, fast_tf, lookback_days)
+    df_fast = add_indicators(df_fast, EMA_FAST, EMA_SLOW, EMA_TREND)
+    
+    df_slow = fetch_ohlcv(client, symbol, slow_tf, lookback_days)
+    df_slow = add_indicators(df_slow, EMA_FAST, EMA_SLOW, EMA_TREND)
+    
+    return df_fast, df_slow
 
 # ─── Logger ─────────────────────────────────────────────────────────────────
 

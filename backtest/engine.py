@@ -13,8 +13,10 @@ from binance.um_futures import UMFutures
 
 from config.settings import (
     SYMBOL, TIMEFRAME, BACKTEST_DAYS, INITIAL_CAPITAL,
-    EMA_FAST, EMA_SLOW, EMA_TREND, LEVERAGE
+    EMA_FAST, EMA_SLOW, EMA_TREND, LEVERAGE,
+    TIMEFRAME_HTF    # ← เพิ่ม
 )
+
 from utils.helpers import get_client, fetch_ohlcv, add_indicators, get_logger
 from strategies.ema_crossover import EMAStrategy, Signal
 
@@ -23,8 +25,9 @@ logger = get_logger("Backtest")
 
 
 class BacktestEngine:
-    def __init__(self, df: pd.DataFrame, initial_capital: float = INITIAL_CAPITAL):
+    def __init__(self, df: pd.DataFrame, df_htf: pd.DataFrame,initial_capital: float = INITIAL_CAPITAL):
         self.df      = df.copy()
+        self.df_htf  = df_htf.copy()
         self.capital = initial_capital
         self.equity  = initial_capital
         self.trades  = []
@@ -35,35 +38,29 @@ class BacktestEngine:
         logger.info(f"▶ เริ่ม Backtest | {len(self.df)} candles | Capital: ${self.capital:,.0f}")
 
         for i in range(EMA_SLOW + 5, len(self.df)):
-            window = self.df.iloc[:i+1]
-            last   = window.iloc[-1]
-            price  = last["close"]
+            window     = self.df.iloc[:i+1]
+            last       = window.iloc[-1]
+            price      = last["close"]
+            ts         = window.index[-1]
 
-            signal = self.strategy.generate_signal(window)
+            # หา HTF candles ที่ตรงกับเวลา
+            htf_window = self.df_htf[self.df_htf.index <= ts]
 
-            # ── Exit ──────────────────────────────────────────────────────
+            signal = self.strategy.generate_signal(window, htf_window)  # ← ส่ง htf
+
             if signal == Signal.CLOSE and self.strategy.position:
                 result = self.strategy.close_position(price)
                 self.equity += result["pnl_usdt"]
-                result["equity"] = self.equity
-                result["timestamp"] = window.index[-1]
+                result["equity"]    = self.equity
+                result["timestamp"] = ts
                 self.trades.append(result)
-                logger.debug(
-                    f"  CLOSE {result['side']} @ {price:.1f} | "
-                    f"PnL: {result['pnl_pct']*100:.2f}% | "
-                    f"Equity: ${self.equity:,.2f}"
-                )
 
-            # ── Entry ─────────────────────────────────────────────────────
             elif signal in (Signal.LONG, Signal.SHORT) and not self.strategy.position:
-                pos = self.strategy.open_position(signal.value, price, self.equity)
-                logger.debug(
-                    f"  OPEN {signal.value} @ {price:.1f} | "
-                    f"Qty: {pos.quantity} | SL: {pos.sl_price:.1f} | TP: {pos.tp_price:.1f}"
-                )
+                atr = window.iloc[-2]["atr"] if "atr" in window.columns else 0.0
+                pos = self.strategy.open_position(signal.value, price, self.equity, atr=atr)
 
             self.equity_curve.append({
-                "timestamp": window.index[-1],
+                "timestamp": ts,
                 "equity":    self.equity,
                 "price":     price,
                 "position":  self.strategy.position.side if self.strategy.position else None
@@ -142,12 +139,19 @@ class BacktestEngine:
 
 
 if __name__ == "__main__":
+    from config.settings import TIMEFRAME_HTF
+    from utils.helpers import fetch_multi_tf
+
     print(f"📡 กำลังดึงข้อมูล {SYMBOL} {TIMEFRAME} ย้อนหลัง {BACKTEST_DAYS} วัน...")
     client = get_client()
-    df     = fetch_ohlcv(client, SYMBOL, TIMEFRAME, BACKTEST_DAYS)
-    df     = add_indicators(df, EMA_FAST, EMA_SLOW, EMA_TREND)
+
+    df, df_htf = fetch_multi_tf(
+        client, SYMBOL,
+        TIMEFRAME, TIMEFRAME_HTF,
+        BACKTEST_DAYS
+    )
 
     print(f"   ได้ {len(df)} candles ({df.index[0].date()} → {df.index[-1].date()})")
 
-    engine = BacktestEngine(df)
+    engine = BacktestEngine(df, df_htf)
     engine.run()
