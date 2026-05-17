@@ -11,8 +11,8 @@ TESTNET    = True
 
 # ─── Trading Pair ───────────────────────────────
 SYMBOL        = "BTCUSDT"
-TIMEFRAME     = "15m"
-TIMEFRAME_HTF = "1h"
+TIMEFRAME     = "1h"
+TIMEFRAME_HTF = "4h"
 
 # ─── EMA Strategy Parameters ────────────────────
 EMA_FAST  = 9
@@ -35,7 +35,7 @@ MIN_VOLUME_USDT = 500_000
 ATR_MULTIPLIER  = 1.1
 
 # ─── Backtesting ────────────────────────────────
-BACKTEST_DAYS   = 180
+BACKTEST_DAYS   = 365
 INITIAL_CAPITAL = 10_000
 
 # ─── Bot Settings ───────────────────────────────

@@ -1,5 +1,7 @@
 """
-strategies/ema_crossover.py — EMA Triple Crossover Strategy (Balanced)
+strategies/ema_crossover.py — Trend-Following Strategy (1h + 4h)
+ปรับใหม่: ใช้ 1h เป็น entry, 4h เป็น trend filter
+เน้น quality over quantity — trade น้อยลง แต่ชัวร์กว่า
 """
 from dataclasses import dataclass
 from enum import Enum
@@ -46,19 +48,16 @@ class EMAStrategy:
     def __init__(self):
         self.position: Optional[Position] = None
 
-    # ─── Signal Generation ──────────────────────────────────────────────
-
     def generate_signal(self, df: pd.DataFrame,
                         df_htf: pd.DataFrame = None) -> Signal:
-        if len(df) < 5:
+        if len(df) < EMA_TREND + 5:
             return Signal.HOLD
 
         last = df.iloc[-1]
         prev = df.iloc[-2]
 
         if self.position:
-            close_signal = self._check_exit(last, prev)
-            if close_signal == Signal.CLOSE:
+            if self._check_exit(last, prev) == Signal.CLOSE:
                 return Signal.CLOSE
 
         if not self.position:
@@ -66,58 +65,77 @@ class EMAStrategy:
 
         return Signal.HOLD
 
+    # ─── Entry Logic ────────────────────────────────────────────────────
+
     def _check_entry(self, prev: pd.Series, last: pd.Series,
                      df: pd.DataFrame,
                      df_htf: pd.DataFrame = None) -> Signal:
+
         fast  = f"ema_{EMA_FAST}"
         slow  = f"ema_{EMA_SLOW}"
         trend = f"ema_{EMA_TREND}"
 
-        # ── 1. Higher Timeframe trend filter (1h) ─────────────────────
-        htf_trend_up   = True
-        htf_trend_down = True
+        # ── HTF Trend Filter (4h) ──────────────────────────────────────
+        # 4h ต้องบอกทิศทางชัดเจน ก่อน entry ใน 1h
+        htf_bull = True
+        htf_bear = True
 
-        if df_htf is not None and len(df_htf) >= 2:
-            htf = df_htf.iloc[-2]
-            htf_trend_up   = (htf[fast] > htf[slow] and
-                              htf["close"] > htf[trend])
-            htf_trend_down = (htf[fast] < htf[slow] and
-                              htf["close"] < htf[trend])
+        if df_htf is not None and len(df_htf) >= 3:
+            h = df_htf.iloc[-2]   # แท่ง 4h ปิดล่าสุด
 
-        # ── 2. ATR filter ─────────────────────────────────────────────
-        atr_threshold = prev["close"] * 0.0008
-        if prev["atr"] < atr_threshold:
+            # Bull: ราคาอยู่เหนือ EMA50 และ EMA9 > EMA21 ใน 4h
+            htf_bull = (
+                h["close"] > h[trend] and
+                h[fast]    > h[slow]  and
+                h[fast]    > h[trend]
+            )
+            # Bear: ราคาอยู่ต่ำกว่า EMA50 และ EMA9 < EMA21 ใน 4h
+            htf_bear = (
+                h["close"] < h[trend] and
+                h[fast]    < h[slow]  and
+                h[fast]    < h[trend]
+            )
+
+        # ── Volatility Filter ──────────────────────────────────────────
+        # ATR ต้องมีขนาดพอสมควร (ตลาดต้องมี movement)
+        min_atr = prev["close"] * 0.0012   # 0.12% ของราคา
+        if prev["atr"] < min_atr:
             return Signal.HOLD
 
-        # ── 3. Volume filter ──────────────────────────────────────────
-        vol_ok = (
-            prev["volume"] > prev["vol_ma"] and
-            prev["volume"] * prev["close"] > MIN_VOLUME_USDT
-        )
-        if not vol_ok:
+        # ── Volume Filter ──────────────────────────────────────────────
+        if not (prev["volume"] > prev["vol_ma"] and
+                prev["volume"] * prev["close"] > MIN_VOLUME_USDT):
             return Signal.HOLD
 
-        # ── 4. EMA gap — หลีกเลี่ยง sideways ─────────────────────────
-        ema_gap = abs(prev[fast] - prev[slow]) / prev["close"]
-        if ema_gap < 0.0003:
+        # ── EMA Spread Filter (หลีกเลี่ยง choppy) ─────────────────────
+        # EMA9 ต้องห่างจาก EMA21 พอสมควร
+        spread = abs(prev[fast] - prev[slow]) / prev["close"]
+        if spread < 0.0005:
             return Signal.HOLD
 
-        # ── 5. LONG conditions ────────────────────────────────────────
+        # ── LONG Setup ─────────────────────────────────────────────────
+        # 1. EMA9 ตัดขึ้น EMA21 (cross up)
+        # 2. ราคาและ EMA9 อยู่เหนือ EMA50
+        # 3. RSI ยืนเหนือ 50 (momentum เป็นบวก)
+        # 4. 4h เป็น uptrend
+        # 5. Candle ปิดเป็นบวก (momentum ยืนยัน)
         long_ok = (
-            prev["cross_up"] and
-            prev["close"] > prev[trend] and
-            prev[fast] > prev[trend] and
-            30 < prev["rsi"] < 68 and
-            htf_trend_up
+            prev["cross_up"]             and
+            prev["close"] > prev[trend]  and
+            prev[fast]    > prev[trend]  and
+            prev["rsi"] > 50             and
+            prev["close"] > prev["open"] and   # bullish candle
+            htf_bull
         )
 
-        # ── 6. SHORT conditions ───────────────────────────────────────
+        # ── SHORT Setup ────────────────────────────────────────────────
         short_ok = (
-            prev["cross_down"] and
-            prev["close"] < prev[trend] and
-            prev[fast] < prev[trend] and
-            32 < prev["rsi"] < 70 and
-            htf_trend_down
+            prev["cross_down"]           and
+            prev["close"] < prev[trend]  and
+            prev[fast]    < prev[trend]  and
+            prev["rsi"] < 50             and
+            prev["close"] < prev["open"] and   # bearish candle
+            htf_bear
         )
 
         if long_ok:
@@ -126,23 +144,29 @@ class EMAStrategy:
             return Signal.SHORT
         return Signal.HOLD
 
+    # ─── Exit Logic ─────────────────────────────────────────────────────
+
     def _check_exit(self, last: pd.Series, prev: pd.Series) -> Signal:
         pos   = self.position
         price = last["close"]
 
         if pos.side == "LONG":
+            # Hard TP/SL
             if price >= pos.tp_price:
                 return Signal.CLOSE
             if price <= pos.sl_price:
                 return Signal.CLOSE
+
+            # Trailing Stop (เริ่มหลังกำไร 0.8%)
             if TRAILING_STOP:
                 pos.highest_price = max(pos.highest_price, price)
-                trail_sl = pos.highest_price * (1 - TRAILING_DELTA)
-                if price <= trail_sl and price > pos.entry_price * 1.005:
-                    return Signal.CLOSE
+                if price > pos.entry_price * 1.008:
+                    trail = pos.highest_price * (1 - TRAILING_DELTA)
+                    if price <= trail:
+                        return Signal.CLOSE
+
+            # EMA reversal (EMA cross กลับด้าน)
             if prev["cross_down"]:
-                return Signal.CLOSE
-            if last["rsi"] > 80:
                 return Signal.CLOSE
 
         elif pos.side == "SHORT":
@@ -150,28 +174,29 @@ class EMAStrategy:
                 return Signal.CLOSE
             if price >= pos.sl_price:
                 return Signal.CLOSE
+
             if TRAILING_STOP:
                 pos.lowest_price = min(pos.lowest_price, price)
-                trail_sl = pos.lowest_price * (1 + TRAILING_DELTA)
-                if price >= trail_sl and price < pos.entry_price * 0.995:
-                    return Signal.CLOSE
+                if price < pos.entry_price * 0.992:
+                    trail = pos.lowest_price * (1 + TRAILING_DELTA)
+                    if price >= trail:
+                        return Signal.CLOSE
+
             if prev["cross_up"]:
-                return Signal.CLOSE
-            if last["rsi"] < 20:
                 return Signal.CLOSE
 
         return Signal.HOLD
 
-    # ─── Position Management ────────────────────────────────────────────
+    # ─── Position Sizing ────────────────────────────────────────────────
 
     def open_position(self, side: str, entry_price: float,
                       balance: float, atr: float = 0.0) -> Position:
+        """ATR-based SL/TP dengan RR 1:2"""
         if atr and atr > 0:
-            sl_dist = atr * ATR_MULTIPLIER
-            tp_dist = atr * ATR_MULTIPLIER * 2.0
-            sl_pct  = sl_dist / entry_price
-            sl_pct  = max(0.005, min(sl_pct, 0.018))
-            tp_pct  = sl_pct * 2.0
+            sl_pct = (atr * ATR_MULTIPLIER) / entry_price
+            # SL range 0.8% ~ 2.0%
+            sl_pct = max(0.008, min(sl_pct, 0.020))
+            tp_pct = sl_pct * 2.0   # RR 1:2
         else:
             sl_pct = STOP_LOSS_PCT
             tp_pct = TAKE_PROFIT_PCT
@@ -197,13 +222,12 @@ class EMAStrategy:
     def close_position(self, exit_price: float) -> dict:
         if not self.position:
             return {}
-
         pos = self.position
-        if pos.side == "LONG":
-            pnl_pct = (exit_price - pos.entry_price) / pos.entry_price
-        else:
-            pnl_pct = (pos.entry_price - exit_price) / pos.entry_price
-
+        pnl_pct = (
+            (exit_price - pos.entry_price) / pos.entry_price
+            if pos.side == "LONG" else
+            (pos.entry_price - exit_price) / pos.entry_price
+        )
         result = {
             "side":     pos.side,
             "entry":    pos.entry_price,
@@ -219,8 +243,9 @@ class EMAStrategy:
         if not self.position:
             return 0.0
         pos = self.position
-        if pos.side == "LONG":
-            pos.pnl_pct = (current_price - pos.entry_price) / pos.entry_price
-        else:
-            pos.pnl_pct = (pos.entry_price - current_price) / pos.entry_price
+        pos.pnl_pct = (
+            (current_price - pos.entry_price) / pos.entry_price
+            if pos.side == "LONG" else
+            (pos.entry_price - current_price) / pos.entry_price
+        )
         return pos.pnl_pct
