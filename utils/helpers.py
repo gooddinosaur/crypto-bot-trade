@@ -57,33 +57,52 @@ def get_client() -> UMFutures:
 
 # ─── Data Fetching ───────────────────────────────────────────────────────────
 
-def fetch_ohlcv(client: UMFutures, symbol: str, interval: str,
-                lookback_days: int = 5) -> pd.DataFrame:
-    """
-    ดึง OHLCV จาก Binance Futures
-    Returns DataFrame columns: [open, high, low, close, volume]
-    """
-    limit = min(1500, lookback_days * 24 * 60 // _interval_minutes(interval))
-    raw = client.klines(symbol=symbol, interval=interval, limit=limit)
+def _interval_minutes(interval: str) -> int:
+    mapping = {"1m": 1, "3m": 3, "5m": 5, "15m": 15,
+               "30m": 30, "1h": 60, "4h": 240, "1d": 1440}
+    return mapping.get(interval, 15)
 
-    df = pd.DataFrame(raw, columns=[
+def fetch_ohlcv(client, symbol, interval, lookback_days=90):
+    import time
+    from datetime import datetime, timedelta, timezone
+
+    interval_min = _interval_minutes(interval)
+    end_time   = datetime.now(timezone.utc)
+    start_time = end_time - timedelta(days=lookback_days)
+
+    all_data = []
+    current_end = end_time
+
+    while current_end > start_time:
+        current_start = max(current_end - timedelta(minutes=interval_min * 1500), start_time)
+
+        raw = client.klines(
+            symbol=symbol,
+            interval=interval,
+            startTime=int(current_start.timestamp() * 1000),
+            endTime=int(current_end.timestamp() * 1000),
+            limit=1500
+        )
+        if not raw:
+            break
+
+        all_data = raw + all_data
+        current_end = current_start
+        time.sleep(0.3)  # ป้องกัน rate limit
+
+    df = pd.DataFrame(all_data, columns=[
         "timestamp", "open", "high", "low", "close", "volume",
         "close_time", "quote_volume", "trades",
         "taker_buy_base", "taker_buy_quote", "ignore"
     ])
     df["timestamp"] = pd.to_datetime(df["timestamp"], unit="ms")
+    df = df.drop_duplicates("timestamp").sort_values("timestamp")
     df.set_index("timestamp", inplace=True)
 
     for col in ["open", "high", "low", "close", "volume"]:
         df[col] = df[col].astype(float)
 
     return df[["open", "high", "low", "close", "volume"]]
-
-
-def _interval_minutes(interval: str) -> int:
-    mapping = {"1m": 1, "3m": 3, "5m": 5, "15m": 15,
-               "30m": 30, "1h": 60, "4h": 240, "1d": 1440}
-    return mapping.get(interval, 15)
 
 
 # ─── Technical Indicators ────────────────────────────────────────────────────
