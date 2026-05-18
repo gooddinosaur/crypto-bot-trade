@@ -142,12 +142,14 @@ class TradingBot:
         sl_side    = "SELL" if side == "LONG" else "BUY"
 
         try:
-            # 1. Market order เปิด position
+            # 1. Limit order เปิด position
             self.client.new_order(
                 symbol=SYMBOL,
                 side=order_side,
-                type="MARKET",
-                quantity=pos.quantity
+                type="LIMIT",
+                timeInForce="GTC",
+                quantity=pos.quantity,
+                price=round(price, 1)
             )
             logger.info(
                 f"✅ OPEN {side} | Qty: {pos.quantity} BTC | "
@@ -197,8 +199,10 @@ class TradingBot:
             self.client.new_order(
                 symbol=SYMBOL,
                 side=close_side,
-                type="MARKET",
+                type="LIMIT",
+                timeInForce="GTC",
                 quantity=pos.quantity,
+                price=round(price, 1),
                 reduceOnly=True
             )
             result = self.strategy.close_position(price)
