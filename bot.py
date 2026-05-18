@@ -157,9 +157,7 @@ class TradingBot:
                 side=sl_side,
                 type="STOP_MARKET",
                 stopPrice=round(pos.sl_price, 1),
-                quantity=pos.quantity,
-                reduceOnly=True,
-                timeInForce="GTE_GTC"
+                closePosition=True
             )
 
             self.client.new_order(
@@ -167,9 +165,7 @@ class TradingBot:
                 side=sl_side,
                 type="TAKE_PROFIT_MARKET",
                 stopPrice=round(pos.tp_price, 1),
-                quantity=pos.quantity,
-                reduceOnly=True,
-                timeInForce="GTE_GTC"
+                closePosition=True
             )
             logger.info(f"   🛡️  SL/TP orders ถูกตั้งแล้ว")
 
