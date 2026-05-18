@@ -7,7 +7,7 @@
 # ─── API Keys ───────────────────────────────────
 API_KEY    = "NLYVjzCjMECjjC1NqrSvbDe5g1LuoTKGMKZLL7t7EwbtqjkHkHGplOePlqGQeyg6"
 API_SECRET = "BWl4cNQPPzAmPjzY0WtaxcLASahbTJKaymTWqThveXmgwMtp67EX2cyPNjrH2FYa"
-TESTNET    = True
+TESTNET    = False
 
 # ─── Trading Pair ───────────────────────────────
 SYMBOL        = "BTCUSDT"
@@ -20,22 +20,22 @@ EMA_SLOW  = 21
 EMA_TREND = 50
 
 # ─── Risk Management ────────────────────────────
-RISK_PER_TRADE   = 0.01   # ปรับเป็น 5% ต่อ trade (ทุนน้อย 30$ ต้องเพิ่มความเสี่ยงเพื่อให้เปิดออเดอร์ได้)
-MAX_POSITION_PCT = 0.10   # 50% ของพอร์ต (ตามคอมเมนต์เดิมที่เขียนไว้)
+RISK_PER_TRADE   = 0.025
+MAX_POSITION_PCT = 0.50
 LEVERAGE         = 10
 
 # ─── Stop Loss / Take Profit ────────────────────
 STOP_LOSS_PCT   = 0.003   # 0.3% ตัดขาดทุนไวมาก
 TAKE_PROFIT_PCT = 0.006   # 0.6% รีบเก็บค่ายกับข้าว
 TRAILING_STOP   = True
-TRAILING_DELTA  = 0.002   # 0.2%
+TRAILING_DELTA  = 0.004   # 0.4%
 
-# ─── Filters ────────────────────────────────────
+# ─── Filters ────────────────────────────────────────────────────────
 MIN_VOLUME_USDT = 500_000
-ATR_MULTIPLIER  = 1.1
+ATR_MULTIPLIER  = 1.5
 
 # ─── Backtesting ────────────────────────────────
-BACKTEST_DAYS   = 14
+BACKTEST_DAYS   = 30
 INITIAL_CAPITAL = 10_000
 
 # ─── Bot Settings ───────────────────────────────

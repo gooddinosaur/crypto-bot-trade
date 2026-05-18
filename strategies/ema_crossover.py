@@ -83,15 +83,16 @@ class EMAStrategy:
         if df_htf is not None and len(df_htf) >= 3:
             h = df_htf.iloc[-2]   # แท่งก่อนหน้าปิดล่าสุด
 
-            # ปิดเงื่อนไข h[trend] ไปก่อน เพื่อให้เข้าได้บ่อยขึ้น
-            htf_bull = (h[fast] > h[slow])
-            htf_bear = (h[fast] < h[slow])
+            # ใช้ Trend filter จริงๆ (EMA 21 และ 50) เพื่อลด noise
+            htf_bull = (h[fast] > h[slow]) and (h["close"] > h[trend])
+            htf_bear = (h[fast] < h[slow]) and (h["close"] < h[trend])
 
         # ── Volume & ATR Filter (ปิดชั่วคราวเพื่อให้เทรดถี่) ────────────
         # (เราเอาเงื่อนไข filter ที่ตึงเกินไปออกทั้งหมด เพื่อจำลอง day trade เต็มรูปแบบ)
 
         # ── LONG Setup ─────────────────────────────────────────────────
-        long_ok = (
+        # 1) Entry จาก Crossover
+        long_cross = (
             prev["cross_up"]             and
             prev["close"] > prev[trend]  and
             prev[fast]    > prev[trend]  and
@@ -99,14 +100,41 @@ class EMAStrategy:
             htf_bull
         )
 
+        # 2) Entry จาก Pullback (ราคาอยู่อัพเทรน ซึมลงมาแตะ EMA ช้า แล้วเด้งกลับ)
+        long_pullback = (
+            not prev["cross_up"] and  # ไม่ใช่จังหวะตัดกันพอดี
+            (prev[fast] > prev[slow] > prev[trend]) and # เป็นขาขึ้นชัดเจน
+            (prev["low"] <= prev[slow]) and # ราคาลงมาแตะหรือหลุดเส้น EMA21
+            (prev["close"] > prev[fast]) and # สร้างแท่งเทียนกลับตัวทะลุ EMA9 กลับขึ้นไป!
+            (prev["close"] > prev["open"]) and # แท่งเทียนเป็นสีเขียว
+            (prev["rsi"] > 50) and # มีแรงซื้อ
+            htf_bull
+        )
+
+        long_ok = long_cross or long_pullback
+
         # ── SHORT Setup ────────────────────────────────────────────────
-        short_ok = (
+        # 1) Entry จาก Crossover
+        short_cross = (
             prev["cross_down"]           and
             prev["close"] < prev[trend]  and
             prev[fast]    < prev[trend]  and
             prev["rsi"] < 50             and
             htf_bear
         )
+
+        # 2) Entry จาก Pullback (ราคาอยู่ดาวน์เทรน เด้งขึ้นมาแตะ EMA ช้า แล้วโดนตบลง)
+        short_pullback = (
+            not prev["cross_down"] and
+            (prev[fast] < prev[slow] < prev[trend]) and
+            (prev["high"] >= prev[slow]) and
+            (prev["close"] < prev[fast]) and # แท่งเทียนกลับตัวทะลุ EMA9 ลงไป
+            (prev["close"] < prev["open"]) and
+            (prev["rsi"] < 50) and
+            htf_bear
+        )
+
+        short_ok = short_cross or short_pullback
 
         if long_ok:
             return Signal.LONG
@@ -135,10 +163,6 @@ class EMAStrategy:
                     if price <= trail:
                         return Signal.CLOSE
 
-            # EMA reversal (EMA cross กลับด้าน)
-            if prev["cross_down"]:
-                return Signal.CLOSE
-
         elif pos.side == "SHORT":
             if price <= pos.tp_price:
                 return Signal.CLOSE
@@ -151,9 +175,6 @@ class EMAStrategy:
                     trail = pos.lowest_price * (1 + TRAILING_DELTA)
                     if price >= trail:
                         return Signal.CLOSE
-
-            if prev["cross_up"]:
-                return Signal.CLOSE
 
         return Signal.HOLD
 
@@ -204,7 +225,7 @@ class EMAStrategy:
             "exit":     exit_price,
             "quantity": pos.quantity,
             "pnl_pct":  pnl_pct,
-            "pnl_usdt": pnl_pct * pos.entry_price * pos.quantity * LEVERAGE,
+            "pnl_usdt": pnl_pct * pos.entry_price * pos.quantity,
         }
         self.position = None
         return result
