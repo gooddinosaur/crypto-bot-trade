@@ -139,8 +139,11 @@ class TradingBot:
             return
 
         order_side = "BUY" if side == "LONG" else "SELL"
+        sl_side    = "SELL" if side == "LONG" else "BUY"
+
         try:
-            order = self.client.new_order(
+            # 1. Market order เปิด position
+            self.client.new_order(
                 symbol=SYMBOL,
                 side=order_side,
                 type="MARKET",
@@ -151,23 +154,28 @@ class TradingBot:
                 f"Entry: ~{price:.1f} | SL: {pos.sl_price:.1f} | TP: {pos.tp_price:.1f}"
             )
 
-            sl_side = "SELL" if side == "LONG" else "BUY"
+            # 2. Stop Loss — ใช้ STOP_MARKET ผ่าน new_order (ต้องมี stopPrice)
             self.client.new_order(
                 symbol=SYMBOL,
                 side=sl_side,
                 type="STOP_MARKET",
                 stopPrice=round(pos.sl_price, 1),
-                closePosition=True
+                quantity=pos.quantity,
+                reduceOnly="true",
+                workingType="MARK_PRICE"
             )
 
+            # 3. Take Profit — ใช้ TAKE_PROFIT_MARKET
             self.client.new_order(
                 symbol=SYMBOL,
                 side=sl_side,
                 type="TAKE_PROFIT_MARKET",
                 stopPrice=round(pos.tp_price, 1),
-                closePosition=True
+                quantity=pos.quantity,
+                reduceOnly="true",
+                workingType="MARK_PRICE"
             )
-            logger.info(f"   🛡️  SL/TP orders ถูกตั้งแล้ว")
+            logger.info("   🛡️  SL/TP orders ถูกตั้งแล้ว")
 
         except Exception as e:
             logger.error(f"❌ Open order failed: {e}")

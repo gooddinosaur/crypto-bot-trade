@@ -1,7 +1,7 @@
 # 🤖 BTC Futures Trading Bot
 
 EMA Triple Crossover strategy สำหรับ Binance USD-M Futures
-
+http://localhost:3000
 ---
 
 ## 📁 โครงสร้างไฟล์

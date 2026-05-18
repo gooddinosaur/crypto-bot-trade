@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Crypto Trading Bot Dashboard</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Socket.io -->
+    <script src="/socket.io/socket.io.js"></script>
+    <style>
+        body { background-color: #0f172a; color: #f8fafc; }
+        .log-container {
+            max-height: 400px;
+            overflow-y: auto;
+            font-family: 'Courier New', Courier, monospace;
+        }
+        .log-line { margin: 2px 0; border-bottom: 1px solid #1e293b; padding-bottom: 2px;}
+    </style>
+</head>
+<body class="p-6">
+    <div class="max-w-6xl mx-auto">
+        
+        <!-- Header -->
+        <header class="flex justify-between items-center mb-8 bg-slate-800 p-6 rounded-xl shadow-lg border border-slate-700">
+            <div>
+                <h1 class="text-3xl font-bold text-emerald-400 flex items-center gap-3">
+                    🚀 Crypto Bot Dashboard
+                    <span class="relative flex h-3 w-3">
+                      <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                      <span class="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
+                    </span>
+                </h1>
+                <p class="text-slate-400 mt-1">Live from Binance USD-M Futures</p>
+            </div>
+            <div class="text-right">
+                <p class="text-sm text-slate-400">Current Balance</p>
+                <h2 class="text-4xl font-black text-amber-400" id="balanceDisplay">$0.00</h2>
+            </div>
+        </header>
+
+        <!-- Stats Grid -->
+        <div class="grid grid-cols-1 md:grid-cols-5 gap-6 mb-8">
+            <!-- Price Card -->
+            <div class="bg-slate-800 p-6 rounded-xl border border-slate-700 shadow-lg">
+                <p class="text-slate-400 mb-1 leading-snug text-sm">BTC/USDT</p>
+                <h3 class="text-xl font-bold text-white" id="priceDisplay">$0.00</h3>
+            </div>
+            
+            <!-- RSI Card -->
+            <div class="bg-slate-800 p-6 rounded-xl border border-slate-700 shadow-lg">
+                <p class="text-slate-400 mb-1 leading-snug text-sm">RSI 5m</p>
+                <h3 class="text-xl font-bold text-cyan-400" id="rsiDisplay">0.0</h3>
+            </div>
+
+            <!-- Position Card -->
+            <div class="bg-slate-800 p-6 rounded-xl border border-slate-700 shadow-lg">
+                <p class="text-slate-400 mb-1 leading-snug text-sm">Position / uPnL</p>
+                <h3 class="text-lg font-bold text-indigo-400" id="positionDisplay" style="white-space: nowrap;">None</h3>
+            </div>
+
+            <!-- Daily P&L Card -->
+            <div class="bg-slate-800 p-6 rounded-xl border border-slate-700 shadow-lg">
+                <p class="text-slate-400 mb-1 leading-snug text-sm">Daily P&L</p>
+                <h3 class="text-xl font-bold" id="dailyPnlDisplay">$0.00 (0.00%)</h3>
+            </div>
+
+            <!-- Lifetime P&L Card -->
+            <div class="bg-slate-800 p-6 rounded-xl border border-slate-700 shadow-lg">
+                <p class="text-slate-400 mb-1 leading-snug text-sm">Lifetime P&L</p>
+                <h3 class="text-xl font-bold" id="lifetimePnlDisplay">$0.00 (0.00%)</h3>
+            </div>
+        </div>
+
+        <!-- Terminal Logs -->
+        <div class="bg-slate-900 rounded-xl border border-slate-700 shadow-lg overflow-hidden">
+            <div class="bg-slate-800 px-4 py-3 border-b border-slate-700 flex justify-between">
+                <h3 class="font-semibold text-slate-200">System Logs</h3>
+                <span class="text-xs text-slate-500">Auto-scrolling</span>
+            </div>
+            <div class="p-4 log-container text-sm text-slate-300" id="logContainer">
+                <div class="text-slate-500 italic">Waiting for bot signals...</div>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        const socket = io();
+
+        const balanceEl = document.getElementById('balanceDisplay');
+        const priceEl = document.getElementById('priceDisplay');
+        const rsiEl = document.getElementById('rsiDisplay');
+        const posEl = document.getElementById('positionDisplay');
+        const dailyPnlEl = document.getElementById('dailyPnlDisplay');
+        const lifetimePnlEl = document.getElementById('lifetimePnlDisplay');
+        const logContainer = document.getElementById('logContainer');
+
+        function formatPnL(value, pct) {
+            if (!value || isNaN(value)) {
+                return `<span class="text-slate-400">$0.00 (0.00%)</span>`;
+            }
+            const sign = value >= 0 ? '+' : '';
+            const colorClass = value >= 0 ? 'text-emerald-400' : 'text-rose-400';
+            return `<span class="${colorClass}">${sign}$${Math.abs(value).toFixed(2)} (${sign}${pct.toFixed(2)}%)</span>`;
+        }
+
+        function extractUpnlColor(posText) {
+            if(posText === 'None') return `<span class="text-slate-400">None</span>`;
+            
+            // ทำให้สีตาม side (LONG=เขียว, SHORT=แดง) และมี uPnL
+            const isLong = posText.includes('LONG');
+            const sideColor = isLong ? 'text-emerald-400' : 'text-rose-400';
+            
+            // เช็คว่ามี uPnL ไหม เช่น "LONG @ 78300 (uPnL: +1.5%)"
+            const upnlMatch = posText.match(/uPnL:\s*([+-]?[0-9.]+)%/);
+            if (upnlMatch) {
+                const pnlVal = parseFloat(upnlMatch[1]);
+                const pnlColor = pnlVal >= 0 ? 'text-emerald-400' : 'text-rose-400';
+                
+                const parts = posText.split('(uPnL:');
+                return `<span class="${sideColor}">${parts[0]}</span><br/><span class="${pnlColor} text-sm">(uPnL:${parts[1]}</span>`;
+            }
+            return `<span class="${sideColor}">${posText}</span>`;
+        }
+
+        socket.on('statusUpdate', (data) => {
+            balanceEl.innerText = `$${parseFloat(data.balance).toFixed(2)}`;
+            priceEl.innerText = `$${parseFloat(data.price).toLocaleString(undefined, {minimumFractionDigits: 1})}`;
+            rsiEl.innerText = parseFloat(data.rsi).toFixed(1);
+            
+            posEl.innerHTML = extractUpnlColor(data.position);
+
+            dailyPnlEl.innerHTML = formatPnL(data.dailyPnL, data.dailyPnLPct);
+            lifetimePnlEl.innerHTML = formatPnL(data.lifetimePnL, data.lifetimePnLPct);
+        });
+
+        socket.on('newLog', (logMsg) => {
+            // ลบ placeholder ทิ้งถ้ามี
+            if(logContainer.innerHTML.includes('Waiting for bot signals...')) {
+                logContainer.innerHTML = '';
+            }
+
+            const div = document.createElement('div');
+            div.className = 'log-line';
+            div.innerText = logMsg;
+            
+            // ใส่สีให้ Log บางประเภท
+            if(logMsg.includes('✅ OPEN')) div.classList.add('text-emerald-400');
+            else if(logMsg.includes('✅ CLOSE')) div.classList.add('text-amber-400');
+            else if(logMsg.includes('❌ Error')) div.classList.add('text-rose-400');
+
+            logContainer.appendChild(div);
+            
+            // Auto scroll down
+            logContainer.scrollTop = logContainer.scrollHeight;
+        });
+
+        socket.on('initLogs', (logs) => {
+            logContainer.innerHTML = '';
+            logs.forEach(logMsg => {
+                const div = document.createElement('div');
+                div.className = 'log-line';
+                div.innerText = logMsg;
+                if(logMsg.includes('✅ OPEN')) div.classList.add('text-emerald-400');
+                else if(logMsg.includes('✅ CLOSE')) div.classList.add('text-amber-400');
+                else if(logMsg.includes('❌ Error')) div.classList.add('text-rose-400');
+                logContainer.appendChild(div);
+            });
+            logContainer.scrollTop = logContainer.scrollHeight;
+        });
+
+    </script>
+</body>
+</html>
