@@ -10,7 +10,16 @@ sys.stdout.reconfigure(encoding='utf-8')
 import time
 import argparse
 import traceback
+import requests
 from datetime import datetime
+
+DASHBOARD_URL = "http://localhost:3000/api/update"
+
+def send_to_dashboard(payload):
+    try:
+        requests.post(DASHBOARD_URL, json=payload, timeout=2)
+    except:
+        pass # ถ้า Dashboard ไม่ได้เปิด ก็ข้ามไปไม่ให้บอทพัง
 
 from config.settings import (
     SYMBOL, TIMEFRAME, LOOP_INTERVAL,
@@ -97,16 +106,36 @@ class TradingBot:
             atr = df.iloc[-2]["atr"] if "atr" in df.columns else 0.0
             self._execute_open("SHORT", price, balance, atr=atr)
 
+        unrealized_pnl = 0.0
         if self.strategy.position:
-            pnl = self.strategy.update_pnl(price)
-            logger.info(f"  📈 Unrealized PnL: {pnl*100:+.2f}%")
+            unrealized_pnl = self.strategy.update_pnl(price)
+            logger.info(f"  📈 Unrealized PnL: {unrealized_pnl*100:+.2f}%")
 
-    # ─── Order Execution ──────────────────────────────────────────────────
+    # ─── Logging ──────────────────────────────────────────────────────────
 
-    def _execute_open(self, side: str, price: float, balance: float, atr: float = 0.0):  # ← เพิ่ม atr
-        pos = self.strategy.open_position(side, price, balance, atr=atr)  # ← เพิ่ม atr=atr
+    def _log_status(self, price, balance, last, signal):
+        unrealized_pnl = 0.0
+        if self.strategy.position:
+            unrealized_pnl = self.strategy.update_pnl(price)
+
+        pos_info = (
+            f"{self.strategy.position.side} @ {self.strategy.position.entry_price:.1f} (uPnL: {unrealized_pnl*100:+.2f}%)"
+            if self.strategy.position else "None"
+        )
+        logger.info(
+            f"[{datetime.now().strftime('%H:%M:%S')}] "
+            f"BTC: ${price:,.1f} | Balance: ${balance:.2f} | "
+            f"RSI: {last['rsi']:.1f} | Signal: {signal} | Position: {pos_info}"
+        )
+
+        # Update Web Dashboard
+        update_dashboard(price, balance, last['rsi'], pos_info)
+
+    def _execute_open(self, side: str, price: float, balance: float, atr: float = 0.0):
+        pos = self.strategy.open_position(side, price, balance, atr=atr)
         if pos.quantity <= 0:
             logger.warning("⚠️  คำนวณ position size = 0 — ข้าม")
+            self.strategy.position = None
             return
 
         order_side = "BUY" if side == "LONG" else "SELL"
@@ -174,18 +203,32 @@ class TradingBot:
     # ─── Logging ──────────────────────────────────────────────────────────
 
     def _log_status(self, price, balance, last, signal):
+        unrealized_pnl = 0.0
+        if self.strategy.position:
+            unrealized_pnl = self.strategy.update_pnl(price)
+
         pos_info = (
-            f"{self.strategy.position.side} @ {self.strategy.position.entry_price:.1f}"
+            f"{self.strategy.position.side} @ {self.strategy.position.entry_price:.1f} (uPnL: {unrealized_pnl*100:+.2f}%)"
             if self.strategy.position else "None"
         )
         logger.info(
             f"[{datetime.now().strftime('%H:%M:%S')}] "
-            f"BTC: ${price:,.1f} | "
-            f"Balance: ${balance:,.2f} | "
-            f"RSI: {last['rsi']:.1f} | "
-            f"Signal: {signal.value} | "
-            f"Position: {pos_info}"
+            f"BTC: ${price:,.1f} | Balance: ${balance:.2f} | "
+            f"RSI: {last['rsi']:.1f} | Signal: {signal} | Position: {pos_info}"
         )
+        
+        # ส่ง Status อัปเดตขึ้นหน้าเว็บ
+        send_to_dashboard({
+            "type": "status",
+            "balance": balance,
+            "price": price,
+            "rsi": last['rsi'],
+            "position": pos_info
+        })
+        
+        # ส่ง Log หยาบๆ ขึ้นหน้าเว็บด้วย
+        log_msg = f"[{datetime.now().strftime('%H:%M:%S')}] BTC: ${price:,.1f} | RSI: {last['rsi']:.1f} | Signal: {signal.value}"
+        send_to_dashboard({"type": "log", "message": log_msg})
 
 
 # ─── Entry Point ──────────────────────────────────────────────────────────────

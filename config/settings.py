@@ -20,8 +20,8 @@ EMA_SLOW  = 21
 EMA_TREND = 50
 
 # ─── Risk Management ────────────────────────────
-RISK_PER_TRADE   = 0.01   # 1% per trade
-MAX_POSITION_PCT = 0.10   # 50% ของพอร์ต (เพราะ Stop loss สั้นมาก ใช้ Margin เยอะขึ้นเพื่อกำไร)
+RISK_PER_TRADE   = 0.05   # ปรับเป็น 5% ต่อ trade (ทุนน้อย 30$ ต้องเพิ่มความเสี่ยงเพื่อให้เปิดออเดอร์ได้)
+MAX_POSITION_PCT = 0.50   # 50% ของพอร์ต (ตามคอมเมนต์เดิมที่เขียนไว้)
 LEVERAGE         = 10
 
 # ─── Stop Loss / Take Profit ────────────────────
@@ -35,7 +35,7 @@ MIN_VOLUME_USDT = 500_000
 ATR_MULTIPLIER  = 1.1
 
 # ─── Backtesting ────────────────────────────────
-BACKTEST_DAYS   = 10
+BACKTEST_DAYS   = 30
 INITIAL_CAPITAL = 10_000
 
 # ─── Bot Settings ───────────────────────────────
