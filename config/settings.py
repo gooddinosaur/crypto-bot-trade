@@ -7,12 +7,12 @@
 # ─── API Keys ───────────────────────────────────
 API_KEY    = "NLYVjzCjMECjjC1NqrSvbDe5g1LuoTKGMKZLL7t7EwbtqjkHkHGplOePlqGQeyg6"
 API_SECRET = "BWl4cNQPPzAmPjzY0WtaxcLASahbTJKaymTWqThveXmgwMtp67EX2cyPNjrH2FYa"
-TESTNET    = False
+TESTNET    = True
 
 # ─── Trading Pair ───────────────────────────────
 SYMBOL        = "BTCUSDT"
-TIMEFRAME     = "5m"
-TIMEFRAME_HTF = "15m"
+TIMEFRAME     = "1m"
+TIMEFRAME_HTF = "5m"
 
 # ─── EMA Strategy Parameters ────────────────────
 EMA_FAST  = 9
@@ -35,7 +35,7 @@ MIN_VOLUME_USDT = 500_000
 ATR_MULTIPLIER  = 1.5
 
 # ─── Backtesting ────────────────────────────────
-BACKTEST_DAYS   = 30
+BACKTEST_DAYS   = 7
 INITIAL_CAPITAL = 10_000
 
 # ─── Bot Settings ───────────────────────────────
