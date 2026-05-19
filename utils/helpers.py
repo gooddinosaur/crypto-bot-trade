@@ -61,13 +61,26 @@ def get_logger(name: str = "BTCBot") -> logging.Logger:
 # ─── Binance Client ──────────────────────────────────────────────────────────
 
 def get_client() -> UMFutures:
-    """สร้าง Binance USD-M Futures client (testnet/live)"""
+    """สร้าง Binance USD-M Futures client (testnet/live) พร้อมซิงค์เวลา"""
     base_url = (
         "https://testnet.binancefuture.com"
         if TESTNET else
         "https://fapi.binance.com"
     )
-    return UMFutures(key=API_KEY, secret=API_SECRET, base_url=base_url)
+    client = UMFutures(key=API_KEY, secret=API_SECRET, base_url=base_url)
+    
+    # ซิงค์เวลากับเซิร์ฟเวอร์
+    try:
+        import time
+        import binance.api
+        server_time = client.time()['serverTime']
+        local_time = int(time.time() * 1000)
+        offset = server_time - local_time
+        binance.api.get_timestamp = lambda: int(time.time() * 1000) + offset
+    except Exception as e:
+        print(f"Failed to sync time: {e}")
+        
+    return client
 
 
 # ─── Data Fetching ───────────────────────────────────────────────────────────

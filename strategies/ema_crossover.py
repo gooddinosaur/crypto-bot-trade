@@ -214,18 +214,35 @@ class EMAStrategy:
         if not self.position:
             return {}
         pos = self.position
-        pnl_pct = (
+        
+        # 1. คำนวณ PnL แบบดิบๆ (ยังไม่หัก Fee)
+        gross_pnl_pct = (
             (exit_price - pos.entry_price) / pos.entry_price
             if pos.side == "LONG" else
             (pos.entry_price - exit_price) / pos.entry_price
         )
+        gross_pnl_usdt = gross_pnl_pct * pos.entry_price * pos.quantity
+
+        # 2. คำนวณค่าธรรมเนียม (สมมติเหมาจ่ายทั้งเข้า-ออก รวมแล้วประมาณ 0.08% หรือ 0.0008)
+        # - ถ้าคุณใช้ Limit สองฝั่ง ค่า Fee ประมาณ 0.04% (0.0004)
+        # - ถ้าคุณใช้ Market สองฝั่ง ค่า Fee ประมาณ 0.10% (0.0010)
+        # ลองตั้งค่ากลางๆ ไว้ที่ 0.04% ก่อน
+        FEE_RATE = 0.0004
+        total_fee = (pos.entry_price * pos.quantity * FEE_RATE) + (exit_price * pos.quantity * FEE_RATE)
+        
+        # 3. หักลบค่าธรรมเนียมออกจากกำไร/ขาดทุน
+        net_pnl_usdt = gross_pnl_usdt - total_fee
+        
+        # ปรับกลับเป็นเปอเซ็นต์ PnL สุทธิ เพื่อให้ Report แสดงได้ถูกต้อง
+        net_pnl_pct = net_pnl_usdt / (pos.entry_price * pos.quantity)
+
         result = {
             "side":     pos.side,
             "entry":    pos.entry_price,
             "exit":     exit_price,
             "quantity": pos.quantity,
-            "pnl_pct":  pnl_pct,
-            "pnl_usdt": pnl_pct * pos.entry_price * pos.quantity,
+            "pnl_pct":  net_pnl_pct,      # ใช้ net (หัก fee แล้ว)
+            "pnl_usdt": net_pnl_usdt,     # ใช้ net (หัก fee แล้ว)
         }
         self.position = None
         return result

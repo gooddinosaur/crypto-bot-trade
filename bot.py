@@ -156,28 +156,26 @@ class TradingBot:
                 f"Entry: ~{price:.1f} | SL: {pos.sl_price:.1f} | TP: {pos.tp_price:.1f}"
             )
 
-            # 2. Stop Loss — ใช้ STOP_MARKET แต่ต้องเรียกผ่าน Algo Order API (สำหรับ fapi)
-            self.client.sign_request("POST", "/fapi/v1/algoOrder", {
-                "symbol": SYMBOL,
-                "algoType": "CONDITIONAL",
-                "side": sl_side,
-                "type": "STOP_MARKET",
-                "triggerPrice": round(pos.sl_price, 1),
-                "closePosition": "true",
-                "workingType": "MARK_PRICE"
-            })
+            # 2. Stop Loss — ใช้ STOP_MARKET ผ่าน new_order ปกติ
+            self.client.new_order(
+                symbol=SYMBOL,
+                side=sl_side,
+                type="STOP_MARKET",
+                stopPrice=round(pos.sl_price, 1),
+                closePosition="true",
+                timeInForce="GTC"
+            )
 
-            # 3. Take Profit — ใช้ TAKE_PROFIT_MARKET ผ่าน Algo Order API
-            self.client.sign_request("POST", "/fapi/v1/algoOrder", {
-                "symbol": SYMBOL,
-                "algoType": "CONDITIONAL",
-                "side": sl_side,
-                "type": "TAKE_PROFIT_MARKET",
-                "triggerPrice": round(pos.tp_price, 1),
-                "closePosition": "true",
-                "workingType": "MARK_PRICE"
-            })
-            logger.info("   🛡️  SL/TP orders ถูกตั้งแล้ว (Algo API)")
+            # 3. Take Profit — ใช้ TAKE_PROFIT_MARKET ผ่าน new_order ปกติ
+            self.client.new_order(
+                symbol=SYMBOL,
+                side=sl_side,
+                type="TAKE_PROFIT_MARKET",
+                stopPrice=round(pos.tp_price, 1),
+                closePosition="true",
+                timeInForce="GTC"
+            )
+            logger.info("   🛡️  SL/TP orders ถูกตั้งแล้ว")
 
         except Exception as e:
             logger.error(f"❌ Open order failed: {e}")
